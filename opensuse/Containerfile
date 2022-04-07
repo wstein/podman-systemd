@@ -1,0 +1,39 @@
+ARG BASEIMAGE=docker.io/opensuse/leap:15.3
+ARG GITHUB_USERNAME=octocat
+ARG CONTAINER_USERNAME=${GITHUB_USERNAME}
+ARG CONTAINER_UID=1000
+ARG CONTAINER_GID=${CONTAINER_UID}
+
+# ============= builder =============
+FROM docker.io/alpine as builder
+
+RUN apk add curl jq
+
+WORKDIR /build
+ARG GITHUB_USERNAME
+RUN curl -fsSL https://api.github.com/users/${GITHUB_USERNAME}/keys | jq --raw-output '.[] | .key' > /build/authorized_keys &&\
+    chmod 600 /build/authorized_keys
+
+# ============== main ===============
+FROM ${BASEIMAGE}
+
+RUN zypper --non-interactive in openssh-server sudo systemd && zypper clean --all
+
+RUN ssh-keygen -A &&\
+    sed -i -r -e "s/^#?\s*(%wheel.*ALL)/# \\1/" -e "s/^#?\s*(%wheel.*NOPASSWD: ALL)/\\1/" /etc/sudoers
+
+ARG CONTAINER_USERNAME
+ARG CONTAINER_UID
+ARG CONTAINER_GID
+RUN groupadd -g ${CONTAINER_GID} ${CONTAINER_USERNAME} &&\
+    groupadd -g 10 wheel &&\
+    useradd -u ${CONTAINER_UID} -g ${GID} -G wheel --create-home ${USERNAME} &&\
+    mkdir -p /home/${UCONTAINER_SERNAME}/.ssh/ &&\
+    ssh-keygen -t ed25519 -a 100 -f /home/${USERNAME}/.ssh/id_ed25519 -N '' &&\
+    chown -R ${CONTAINER_USERNAME}:${CONTAINER_USERNAME} /home/${CONTAINER_USERNAME}/.ssh
+
+COPY --from=builder --chown=${CONTAINER_USERNAME}:${CONTAINER_USERNAME} /build/authorized_keys /home/${CONTAINER_USERNAME}/.ssh/authorized_keys
+
+LABEL de.wstein.repo=github.com/wstein/podman-systemd
+
+ENTRYPOINT [ "/usr/lib/systemd/systemd" ]
